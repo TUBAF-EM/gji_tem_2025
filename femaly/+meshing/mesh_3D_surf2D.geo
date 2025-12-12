@@ -1,0 +1,96 @@
+SetFactory("OpenCASCADE");
+
+// Define points.
+pt_id = newp;
+pt_list() = {};
+Point(pt_id+0) = {-2.5, -2.5, 0};
+Point(pt_id+1) = {-2.5, 2.5, 0};
+Point(pt_id+2) = {2.5, -2.5, 0};
+Point(pt_id+3) = {2.5, 2.5, 0};
+Point(pt_id+4) = {20, 0, 0};
+pt_list() += {pt_id+4};
+pt_id_list() = {pt_id+4};
+Physical Point("point_1", 1) = pt_id_list();
+topo_pt_list() = {pt_id+0, pt_id+1, pt_id+2, pt_id+3, pt_id+4};
+
+// Define piecewise straight lines from point set.
+ln_id = newl;
+ln_list() = {};
+ln_id = newl;
+Line(ln_id+0) = {pt_id+0, pt_id+1};
+Line(ln_id+1) = {pt_id+0, pt_id+2};
+Line(ln_id+2) = {pt_id+1, pt_id+3};
+Line(ln_id+3) = {pt_id+2, pt_id+3};
+ln_list() += {ln_id+0, ln_id+1, ln_id+2, ln_id+3};
+wire_ln_list() = {ln_id+1, ln_id+3, ln_id+2, ln_id+0};
+Physical Curve("line_1", 1) = wire_ln_list();
+
+// Define surface from domain boundary point set.
+domain_r = 10000;
+domain_c = {8.75, 0, 0};
+shape = 1;
+
+// Create surface.
+//
+If (shape == 1)
+//
+	Disk(1) = {domain_c(0), domain_c(1), 0, 1.3*domain_r};
+//
+Else
+        Rectangle(1) = {domain_c(0)-domain_r, domain_c(1)-domain_r, 0, 2*domain_r, 2*domain_r};
+//
+EndIf
+
+// Embed points and lines in surface.
+If (#pt_list() > 0)
+	BooleanFragments{Surface{:}; Delete;}{Point{pt_list()}; Delete;}
+EndIf
+If (#ln_list() > 0)
+    // -> point ids seem not to be preserved!
+	BooleanFragments{Surface{:}; Delete;}{Line{ln_list()}; Delete;}
+    // Update indices in topo_pt_list(), created by generate_mesh3D.
+	ln_pt_list() = Unique(PointsOf{Line{ln_list()};});
+    Physical Point("refine_point") = ln_pt_list();
+Else
+    ln_pt_list() = {};
+EndIf
+sf_list() = Surface{:};
+Physical Surface("surface", 1) = sf_list();
+
+// Apply threshold Filter.
+size_at_point = 0.5;
+size_at_wire = 1.25;
+pad = 0.7;
+
+// Cell sizes at points.
+Field[1] = Distance;
+// Ensure that all TX/RX points, which may act as poles, are refined.
+Field[1].NodesList = {pt_list(), ln_pt_list()};
+Field[10] = Threshold;
+Field[10].IField = 1;
+Field[10].LcMin = size_at_point;
+Field[10].DistMin = 2*size_at_point;
+Field[10].LcMax = pad*domain_r;
+Field[10].DistMax = domain_r;
+
+// Cell sizes at lines.
+Field[2] = Distance;
+Field[2].EdgesList = {ln_list()};
+Field[20] = Threshold;
+Field[20].IField = 2;
+Field[20].LcMin = size_at_wire;
+Field[20].DistMin = size_at_wire;
+Field[20].LcMax = pad*domain_r;
+Field[20].DistMax = domain_r;
+
+// Take the min of all constraints.
+Field[100] = Min;
+Field[100].FieldsList = {10, 20};
+Background Field = {100};
+Mesh.CharacteristicLengthFromPoints = 0;
+Mesh.CharacteristicLengthFromCurvature = 0;
+Mesh.CharacteristicLengthExtendFromBoundary = 0;
+Mesh.SaveParametric = 0;
+
+// Mesh 2D.
+Mesh 2;
