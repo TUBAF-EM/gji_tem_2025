@@ -19,3 +19,6 @@ ref_global = 0;
 ```
 need to be adjusted in order to ensure appropriate low discretization errors in space and time.
 
+### MUMPS
+Please see https://github.com/Mathias-Scheunert/matlab-mumps-32 for install instructions.
+
