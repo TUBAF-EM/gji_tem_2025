@@ -33,12 +33,12 @@
 %   -M*u(ti) + (M + dt*K)u(ti+1) = b
 %                        u(ti+1) = (M + dt*K)^-1 * (M*u(ti) + b * f(t))
 %                        u(t1)   = (M + dt*K)^-1 * (b       + b * f(t1))
-
+%
 % Jacobian (Frechet derivatives) for implicit Euler:
 %   d_u(t_i+1)/d_m = (M + dt*K)^-1 [d_M/d_m*(u_i - u_i+1) + M*d_u_i/d_t]
 %   d_u(t_1)/d_m   = (M + dt*K)^-1 [d_M/d_m*(-u_1)]               as   d_b/d_m = 0
 %
-%   d_M/d_m u(t_0) =
+% Mathias Scheunert, 2025
 
 %% Initialize.
 
