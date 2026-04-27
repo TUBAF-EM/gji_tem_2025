@@ -51,6 +51,7 @@ function sol = assemble(type, mesh, FE_order, bnd_sum, tem_info)
     assert(strcmp(bnd_sum{1}, 'dirichlet'));
     assert(isstruct(tem_info) && all(isfield(tem_info, {'pt_TX', 'lm', 'srcm'})));
     if isfield(tem_info, 'data_type')
+% FIXME: which types should we support?
         assert(iscell(tem_info.data_type) && ...
                all(cellfun(@(x) any(strcmp({'dHdt', 'dBdt', 'E'}, x)), ...
                        tem_info.data_type)));
@@ -121,6 +122,7 @@ function sol = assemble(type, mesh, FE_order, bnd_sum, tem_info)
         % Assembling measurement operator.
         O = [];
         for cc = 1:length(tem_info.data_type)
+% FIXME: handle that only a subset of directions is requested?
             switch tem_info.data_type{cc}
                 case {'dBdt', 'dHdt'}
                 O_ = assembling.assemble_point_sources(dofmap, tem_info.pt_RX(:,1:3).', 'curl');

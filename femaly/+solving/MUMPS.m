@@ -23,6 +23,14 @@ classdef MUMPS < handle
                 error('MUMPS package not installed!');
             end
 
+            % Set optimization for symmetric matrices
+            % Note: if not exactly symmetric, MUMPS may terminate with
+            %       seg. fault!
+            if issymmetric(A) && norm(A - A.', 'fro') < 1e-12
+                obj.id.SYM = 1;
+            else
+                obj.id.SYM = 0;
+            end
             obj.A = A;
 
             if isreal(obj.A)
@@ -41,6 +49,12 @@ classdef MUMPS < handle
             obj.id.JOB = -1;
             obj.id = obj.mumps(obj.id);
             obj.check_err();
+
+            % Force silent output
+            obj.id.ICNTL(1) = -1;
+            obj.id.ICNTL(2) = -1;
+            obj.id.ICNTL(3) = -1;
+            obj.id.ICNTL(4) = 0;
 
             % Factorize (symbolic and numeric)
             obj.id.JOB = 4;
@@ -125,6 +139,8 @@ end
 
 
 function s = update_struct(s, s_new)
+
+%FIXME: May move to +utils
 
     % Remove fields in s_new from s,
     % raise error if field not in s

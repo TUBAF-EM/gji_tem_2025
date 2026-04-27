@@ -17,7 +17,7 @@ function [d, S] = solve(sol, param, solver_type, tem_info, trafo)
     %                           system matrix A and rhs vector b
     %              TM         - Mass matrix derivative tensor
     %   param   ... Vector of cell parameters.
-    %
+    %HA
     % OPTIONAL PARAMETER
     %   solver_type ... Character, denoting the solver for linear system.
     %   tem_info    ... Struct, containing survey info and mappings to obtain
@@ -68,6 +68,39 @@ function [d, S] = solve(sol, param, solver_type, tem_info, trafo)
 
     % Sanity check.
     all(ismember(tem_info.t_obs, tem_info.t));
+
+    % Set up parallel pool.
+    % Note: only for sensitivity calculation parallelism can be exploited
+    if nargout > 1
+        if ~isfield(tem_info, 'solver_parallel') || tem_info.solver_parallel <= 1
+            % No parallelism required.
+            tem_info.solver_parallel = 0;
+        elseif tem_info.solver_parallel > 1
+            % Check if parallel toolbox license is available.
+            if license('test', 'distrib_computing_toolbox')
+                % Check for existing pool of parallel worker.
+                par_pool = gcp('nocreate');
+                if isempty(par_pool)
+                    % Create pool.
+                    par_pool = parpool('local', tem_info.solver_parallel);
+                elseif (par_pool.NumWorkers == tem_info.solver_parallel)
+                    fprintf(['Using active pool with %d worker. ', ...
+                            'Use delete(gcp(''nocreate'')); to close current pool.\n'], par_pool.NumWorkers);
+                else
+                    delete(par_pool);
+                    par_pool = parpool('local', tem_info.solver_parallel);
+                end
+                % Ensure that during (back)propagation via parfor only
+                % single indices (and no chunks) are passed, such that
+                % workload between the worker can be better balnaced
+                parpool_opts = parforOptions(par_pool, 'RangePartitionMethod', 'fixed', 'SubrangeSize', 1);
+            else
+                warning(['No Distributed Computing Toolbox available. ', ...
+                        'Proceed with serial calculation.']);
+                tem_info.solver_parallel = 0;
+            end
+        end
+    end
 
     %% Get linear system info.
 
@@ -153,191 +186,27 @@ function [d, S] = solve(sol, param, solver_type, tem_info, trafo)
                 solver_ = decomposition(A, type_);
                 solver = struct();
                 solver.solve = @(b) solver_ \ b;
-                solver.delete = @() clear('solver_'); %required?
+                solver.delete = @() []; % dummy, .solve will not be touched!
 
-            case  {'mumps', 'mumps_ooc'}
-                id_.SYM = 0;
-                if issymmetric(A)
-% FIXME: Why symmetry argument leads to seg.fault error?
-                    % id_.SYM = 1;
-                end
-                if strcmp(type, 'mumps')
-                    solver = solving.MUMPS(A, id_);
-                else
-                    % Choose solver variant.
-                    solver = struct();
-                    if isreal(A)
-                        solver.mumps = @dmumps;
-                    else
-                        solver.mumps = @zmumps;
-                    end
+            case  {'mumps'}
+                solver = solving.MUMPS(A);
 
-                    % Set file name var env.
-                    assert(isscalar(num));
-                    solver.num = num2str(num);
-                    setenv('MUMPS_SAVE_PREFIX', ['deco_', solver.num]);
-
-                    % Initialize mumps object.
-                    solver.id = dmumps(initmumps());
-                    solver.id.SYM = id_.SYM;
-                    
-                    % Set parameter to enable OOC.
-                    solver.id.ICNTL(22) = 1;
-                    solver.id.ICNTL(35) = 3;
-                    
-                    % Factorize OOC.
-                    solver.id.JOB = 4;
-                    solver.id = dmumps(solver.id, A);
-                    
-                    % Save the instance to disk.
-                    solver.id.JOB = 7;
-                    solver.id = dmumps(solver.id, A);
-                    n_sys = size(A, 1);
-                    solver.A = sparse([], [], [], n_sys, n_sys); % dummy
-
-                    % Free internal memory (saved files remain).
-                    solver.id.JOB = -2;
-                    [~] = dmumps(solver.id, solver.A);
-
-                    % Set wrapper.
-                    solver.solve = @(b) solve_ooc(solver, b);
-                    solver.delete = @() solve_delete(solver); 
-                end
+            case  {'mumps_ooc'}
+                solver = solving.MUMPS_OOC(A, num);
 
             otherwise
                 error('Unsupported solver type.');
         end
-
-        function x = solve_ooc(solver, b)
-            % Initialize.
-            id = dmumps(initmumps());
-            setenv('MUMPS_SAVE_PREFIX', ['deco_', solver.num]);
-            
-            % % Reset solver parameter.
-            id.SYM = solver.id.SYM;
-            
-            % Restore saved instance.
-            id.JOB = 8;
-            id = solver.mumps(id, solver.A);
-
-            % Set RHS and solve.
-            id.RHS = b;
-            id.JOB = 3;
-            id = solver.mumps(id, solver.A);
-            x = id.SOL;
-
-            % Cleanup object.
-            id.JOB = -2;
-            [~] = solver.mumps(id, solver.A);
-        end
-
-        function solve_delete(solver)
-            % Initialize.
-            id = solver.mumps(initmumps());
-            setenv('MUMPS_SAVE_PREFIX', ['deco_', solver.num]);
-            
-            % Restore saved instance.
-            id.JOB = 8;
-            id = solver.mumps(id, solver.A);
-            
-            % Remove saved files.
-            id.JOB = -3;
-            id = solver.mumps(id, solver.A);
-            
-            % Cleanup object.
-            id.JOB = -2;
-            [~] = solver.mumps(id, solver.A);
-        end
     end
 
     function [d, S] = solve_rba(b, K, M, O, solver_type, tem_info)
-        % Create forward solution and sensitivity handle.
-
-        % Get handle to forward solver.
-        if tem_info.solver_parallel > 1
-            warning('Not implemented yet.');
-        end
-        solver_fun_ = @(A) get_solver_fun(A, solver_type);
-
-        % Initialize solver for mass matrix.
-        solver_fun = solver_fun_(M);
-
-        % Get initial value.
-        x0 = solver_fun.solve(b);
-        solver_fun.delete;
-
-        % Solve.
-        t = tem_info.t_obs;
-        d = zeros(size(O, 2), length(t));
-        u = zeros(size(M, 1), length(t));
-        r = rba.create_rba_matrix(tem_info.n_poles, K, M, x0, @(A, b) wrap_solver(A, solver_fun_, b));
-        fprintf('Calculate RBA for %d time steps and %d DOF: ', length(t), size(M, 1));
-        run_time = tic;
-        for tt = 1:length(t)
-            % Calculate time solution.
-            str_verbose = fprintf('%d', tt);
-            u(:, tt) = r(t(tt));
-            d(:, tt) = O.' * u(:, tt);
-            fprintf(repmat('\b', 1, str_verbose));
-        end
-        fprintf('%.2ds \n', toc(run_time));
-
-        % Clean up.
-        solver_fun.delete;
-
-        % Reshape into vertical concatenated expression.
-        d = d(:);
-
-% TODO: implement from Marios Habil.
-        if nargout > 1
-            S = [];
-            warning('Not implemented yet.');
-        end
-
-        %%% Helper %%%
-
-        function u = wrap_solver(A, solver_fun_, b)
-            % Solve fwp and crude overwrite output.
-
-            assert(isvector(b) && size(b, 1) == size(A, 2));
-            solver = solver_fun_(A);
-            u = solver.solve(b);
-            solver.delete;
-        end
+	error('Not implemented, yet!')
     end
 
     function [d, S] = solve_impl(b, K, M, O, TM, solver_type, tem_info)
         % Create forward solution and sensitivity matrix.
         %
         % t = 0 is assumed as initial time
-        
-        % Get forward problem solver.
-        if tem_info.solver_parallel > 1
-            if ~contains(solver_type, 'mumps')
-                warning(['Parallel computing requires mumps solver. ', ...
-                         'Proceed with MUMPS_ooc.'])
-            end
-% HACK: handle cases
-solver_type = 'mumps_ooc';
-
-            % Set directories & prefixes.
-            save_dir = fullfile(pwd, 'tmp_mumps');  % storage location
-            if ~exist(save_dir, 'dir')
-                mkdir(save_dir);    
-            end
-            
-            % Set required env vars.
-            if isempty(getenv('MUMPS_SAVE_DIR'))
-                setenv('MUMPS_SAVE_DIR', save_dir);
-            end
-            solver_fun = @(A, num) get_solver_fun(A, solver_type, num);
-        else
-% HACK: handle cases
-if contains(solver_type, 'mumps')
-solver_type = 'mumps';
-end
-            solver_fun = @(A, num) get_solver_fun(A, solver_type);
-        end
 
         % Get time-dependent rhs.
         b_fun = get_djdt_fun(tem_info.src_info);
@@ -365,13 +234,16 @@ end
         assert(length(solver_idx_in_t) == n_t, ...
                'Ensure dt to have same size as t.');
 
-        % Get all unique solver objects.
+        % Create all unique solver objects (if ooc, additionally store
+        % factorizations to disc).
         solver_MdtK = cell(n_dt, 1);
         fprintf('Calculate %d system decompositions for %d DOF: ', n_dt, size(M, 1));
         run_time = tic;
         for dd = 1:n_dt
             str_verbose = fprintf('%d', dd);
-            solver_MdtK{dd} = solver_fun(dt_unique(dd)*K + M, dd);
+            % Note: Variable dd only relevant for ooc (denotes file name),
+            %       otherwise it's just a dummy argument.
+            solver_MdtK{dd} = get_solver_fun(dt_unique(dd)*K + M, solver_type, dd);
             fprintf(repmat('\b', 1, str_verbose));
         end
         fprintf('%.2ds \n', toc(run_time));
@@ -438,34 +310,8 @@ end
         d = d_(:);
 
         %%% Calculate sensitivity via backard propagation %%%
-        
+
         if nargout > 1
-        % -> only for sensitivity calculation parallelism can be exploited
-            if ~isfield(tem_info, 'solver_parallel')
-                tem_info.solver_parallel = 0;
-            elseif tem_info.solver_parallel == 1
-                warning(['Only 1 worker should be used. ', ...
-                        'Proceed with serial calculation.']);
-                tem_info.solver_parallel = 0;
-            elseif tem_info.solver_parallel > 1
-                % Check if parallel toolbox license is available.
-                if license('test', 'distrib_computing_toolbox')
-                    % Check for existing pool of parallel worker.
-                    par_pool = gcp('nocreate');
-                    if isempty(par_pool)
-                        % Create pool.
-                        parpool('local', tem_info.solver_parallel);
-                    else
-                        fprintf(['Using active pool with %d worker. ', ...
-                                'Use delete(gcp(''nocreate'')); to close current pool.\n'], par_pool.NumWorkers);
-                    end
-                else
-                    warning(['No Distributed Computing Toolbox available. ', ...
-                            'Proceed with serial calculation.']);
-                    tem_info.solver_parallel = 0;
-                end
-            end
-            
             % Get sensitivity.
             if n_d >= n_dof/2 % arbitrary treshold!
                 % Skip calculation of S would be too large.
@@ -480,7 +326,7 @@ end
 
                 % Calculate sensitivity.
                 if tem_info.solver_parallel > 1
-                    S = get_S_parallel_ooc(S);
+                    S = get_S_parallel(S);
                 else
                     S = get_S_serial(S);
                 end
@@ -494,15 +340,9 @@ end
 
         % Remove all solver objects.
         for dd = 1:n_dt
-            if isa(solver_MdtK, 'parallel.pool.Constant')
-                solver_MdtK.Value{dd}.delete;
-            elseif isa(solver_MdtK, 'cell')
-                solver_MdtK{dd}.delete();
-            else
-                error('Unknown type.');
-            end
+            solver_MdtK{dd}.delete();
         end
-        
+
         %% Helper.
 
         function b = get_djdt_fun(src_info)
@@ -553,6 +393,8 @@ end
 
         function [t, dt] = adjust_t_dt(tem_info)
             % Adjust t to numerically handle the source turn-off-function.
+% FIXME: may better split up times t=[0, t0] (or [0, t_obs(1)]) into a
+%        fixed number of steps
 
             % Fetch info.
             t0 = tem_info.t(1);
@@ -560,10 +402,10 @@ end
             dt_ = tem_info.dt;
             dt_ref = tem_info.src_info.dt_ref;
 
-            % Get number of points to add for dt_ref such that db is approx. 0.
+            % Get number of points to add for dt_ref such that b_fun is approx. 0.
             n_t_add_ref = add_time_steps(dt_ref, b_fun);
 
-            % Check that db = 0 (including thresold steps) is reached before t0.
+            % Check that b_fun = 0 (including thresold steps) is reached before t0.
             % -> Ensure to have add_ref_tresh tiny time steps after initial src signal
             add_ref_tresh = 1e1;
             if (t0 - (dt_ref*(n_t_add_ref))) < 0
@@ -656,7 +498,7 @@ end
                     continue;
                 end
 
-                % Loop over t_obs that share the same initial solver, 
+                % Loop over t_obs that share the same initial solver,
                 % starting from latest time.
                 if n_t_obs_cur >= 1
                     % Only if current solver chunk belongs to initial solver of
@@ -721,12 +563,26 @@ end
             fprintf('%.2ds (%i FBS)\n', toc(run_time), n_FBS);
         end
 
-        function S = get_S_parallel_ooc(S)
-                
-            % Define pool constants for all large, read-only variables too, 
+        function S = get_S_parallel(S)
+
+            % Destroy (local) mumps instances.
+            for i = 1:n_dt
+                switch solver_type
+                    case 'mumps_ooc'
+                        % Keep meta info but destroy Mumps object
+                        solver_MdtK{i}.unload();
+                    case 'chol'
+                        % Ensure that no handle will be serialized.
+                        solver_MdtK{i} = rmfield(solver_MdtK{i}, 'solve');
+                    otherwise
+                        solver_MdtK{i}.delete();
+                end
+            end
+
+            % Define pool constants for all large, read-only variables too,
             % such that they are copied only once.
-            worker_u = parallel.pool.Constant(u);
             worker_solver_idx_in_t = parallel.pool.Constant(solver_idx_in_t);
+            worker_u = parallel.pool.Constant(u);
             worker_TM = parallel.pool.Constant(sol.TM);
             if isfield(tem_info, 'u_DC')
                 worker_u_DC = parallel.pool.Constant(tem_info.u_DC);
@@ -734,8 +590,13 @@ end
                 worker_u_DC = [];
             end
             worker_M = parallel.pool.Constant(M);
+            worker_K = parallel.pool.Constant(K);
             worker_O = parallel.pool.Constant(O);
-            worker_solver_MdtK = parallel.pool.Constant(solver_MdtK);
+            % Var1: (get_local_solver needs to be adjusted, respectively!)
+            % - seems to be little bit slower than Var2
+            % worker_solver_MdtK = parallel.pool.Constant(@() get_local_solver(solver_MdtK, K, M));
+            % Var2: (get_local_solver is correctly set using .Value)
+            worker_solver_MdtK = parallel.pool.Constant(@() get_local_solver(solver_MdtK));
 
             % Set current back-propagation time.
             t_obs_idx = find(t_obs_idx_in_t);
@@ -743,37 +604,59 @@ end
             % Loop over t_obs in parallel.
             fprintf('Backpropagate sensitivity for %d times in parallel w.r.t. %d RHS: ', n_t_obs, n_d);
             run_time = tic;
-            parfor ii = 1:n_t_obs
+            parfor (ii = 1:n_t_obs, parpool_opts)
+            % parfor ii = 1:n_t_obs
                 % Set initial step which refers to observation operator.
-                U_adjoint_rhs = worker_O.Value; 
+                all_local_solver = worker_solver_MdtK.Value;
+                solver2t_map = worker_solver_idx_in_t.Value;
+                local_TM = worker_TM.Value;
+                local_M = worker_M.Value;
+                local_u = worker_u.Value;
+                local_O = worker_O.Value;
+                if isempty(worker_u_DC)
+                    local_u_DC = 0;
+                else
+                    local_u_DC = worker_u_DC.Value;
+                end
                 S0 = zeros(n_d, n_param);
                 % Get adjoint solution via back propagation.
                 for tt_ = t_obs_idx(ii):-1:1
                     % Get adjoint solution.
                     % -> Pick the correct solver for this time step
-                    U_adjoint = worker_solver_MdtK.Value{worker_solver_idx_in_t.Value(tt_)}.solve(U_adjoint_rhs).';
+                    local_solver = all_local_solver{solver2t_map(tt_)};
+                    U_adjoint = local_solver.solve(local_O).';
 
                     % -> symmetric M does not change with time
-                    U_adjoint_rhs = (U_adjoint * worker_M.Value).';
+                    local_O = (U_adjoint * local_M).';
 
                     % Evaluate sensitivity.
                     if tt_ == 1
                         % -> u: (u_DC)-u_i
-                        if ~isempty(worker_u_DC)
-                            u_ = worker_u_DC.Value - worker_u.Value(:, tt_);
-                        else
-                            u_ = -worker_u.Value(:, tt_);
-                        end
-                        S0 = (U_adjoint * ttv(worker_TM.Value, u_, 2)) + S0;
+                        u_ = local_u_DC - local_u(:, tt_);
+                        S0 = (U_adjoint * ttv(local_TM, u_, 2)) + S0;
                     else
                         % -> u: u_i-1 - u_i
-                        S0 = (U_adjoint * ttv(worker_TM.Value, worker_u.Value(:, tt_-1) - ...
-                                              worker_u.Value(:, tt_), 2)) + S0;
+                        S0 = (U_adjoint * ttv(local_TM, local_u(:, tt_-1) - ...
+                                              local_u(:, tt_), 2)) + S0;
                     end
                 end
                 S(:, ii, :) = S0;
             end
             fprintf('%.2ds (%i FBS)\n', toc(run_time), sum(t_obs_idx));
+
+            % Helper
+            function local_solver_MdtK = get_local_solver(local_solver_MdtK)
+                % Load / create local factorizations (only once at startup)
+
+                for jj = 1:n_dt
+                    switch solver_type
+                        case 'mumps_ooc'
+                        local_solver_MdtK{jj}.load();
+                        otherwise
+                        local_solver_MdtK{jj} = get_solver_fun(dt_unique(jj)*worker_K.Value + worker_M.Value, solver_type);
+                    end
+                end
+            end
         end
     end
 end
