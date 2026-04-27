@@ -18,7 +18,10 @@ Please see https://github.com/Mathias-Scheunert/matlab-mumps-32 for install inst
 
 ### Setting up empymod
 Please install empymod within a (mini)conda environment and set environment variables before you start Matlab:
+
 path_gcc="<your-path>.conda/envs/<your_env>/lib/libstdc++.so.6"
+
 export LD_PRELOAD="$path_gcc"
+
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 
