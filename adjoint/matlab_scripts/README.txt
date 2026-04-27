@@ -1,6 +1,6 @@
 This demo gives an example of how the convolutional sensitivities are calculated.
 
-First run analytic_e_field_grid_demo.m to produce the physical fields on a regular grid using a given loop source. 
+First run analytic_e_field_grid.m to produce the physical fields on a regular grid using a given loop source. 
 E-field values are written into EM_field_and_coord_empymod_5x3x2_-7_-3_srcl1.mat where the 
 file name contains information on the number of grid points (5x3x2), the time range -7_-3 and the source side length srcl1.
 
