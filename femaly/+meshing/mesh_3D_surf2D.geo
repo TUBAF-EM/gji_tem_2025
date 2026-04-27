@@ -26,7 +26,7 @@ wire_ln_list() = {ln_id+1, ln_id+3, ln_id+2, ln_id+0};
 Physical Curve("line_1", 1) = wire_ln_list();
 
 // Define surface from domain boundary point set.
-domain_r = 10000;
+domain_r = 100000;
 domain_c = {8.75, 0, 0};
 shape = 1;
 
@@ -59,7 +59,7 @@ Physical Surface("surface", 1) = sf_list();
 
 // Apply threshold Filter.
 size_at_point = 0.5;
-size_at_wire = 1.25;
+size_at_wire = 0.5;
 pad = 0.7;
 
 // Cell sizes at points.
