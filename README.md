@@ -5,7 +5,7 @@ Tested with Matlab 2022b and Gmsh 4.15.0
 
 ## FEMALY
 Please run .../femaly/+app_tem/+examples/drive_paper.m from the .../femaly main folder.
-The script calculates all components of the electrical and magnetic field and the respective sensitivities for a single observation point.
+The script calculates all components of the E and dB/dt field as well as the respective sensitivities for a single observation point.
 
 At least Matlab 2022b and Gmsh are required.
 If the direct solver MUMPS is available, also parallel evaluation is supported.
