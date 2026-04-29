@@ -14,6 +14,8 @@ To crosscheck the numerical solutions, empymod with Python3 needs to be availabl
 
 If you want to modify the script parameters, please refer to the 'Initialize.' section within drive_paper.m.
 
+You can load the stage file .../femaly/results/show_S.psvm into ParaView to visualize the pre-calculated sensitivities in 3D.
+
 ### Setting up MUMPS
 Please see https://github.com/Mathias-Scheunert/matlab-mumps-32 for install instructions.
 
