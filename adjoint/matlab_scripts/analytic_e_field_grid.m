@@ -26,13 +26,13 @@
 
 % Pick analytical solution
 tic
-Analytical_Solution = util.pick(2,'VMD','empymod');
+Analytical_Solution = pick(2,'VMD','empymod');
 
 switch Analytical_Solution
     case 'empymod'
         fprintf('Analytical solution: %s\n',Analytical_Solution);
         src_center = [0 0 0]; % May be changed for empymod
-        src_length2 = util.pick(1, 0.5, 2.5, 9);
+        src_length2 = pick(1, 0.5, 2.5, 9);
         line = [-src_length2+src_center(1), -src_length2+src_center(2), 0, 1, 1;    % square, centered at [0,0,0]
             src_length2+src_center(1), -src_length2+src_center(2), 0, 1, 1;
             src_length2+src_center(1),  src_length2+src_center(2), 0, 1, 1;
