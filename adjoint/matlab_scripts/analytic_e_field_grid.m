@@ -62,9 +62,9 @@ sig_earth = 1/10;
 
 % Define grid dimensions and spacings - each node is an observation point
 % 
-delta_x = 2;
-delta_y = 2;
-delta_z = 2;
+delta_x = 20;
+delta_y = 20;
+delta_z = 20;
 px_min = -40;
 px_max = 40;
 py_min = -20;
