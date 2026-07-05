@@ -1,32 +1,38 @@
-% Calculate the TEM electric field of a vertical magnetic dipole or a 
-% loop source using empymod.
+% Calculate the TEM electric field of a vertical magnetic dipole using 
+% VMD or, for a loop source, using empymod.
 %
 % For empymod, define source center and source dimension of the rectangular
 % loop. 
 % 
+% For VMD, the source is assumed to be located at the origin.
+% 
 % Specify a regular grid of observation points. The electric field values 
 % at each 
-% point are provided in  
-% EM_field_empymod(n_comp,n_pts,n_t_steps).
+% point are provided in EM_field_VMD(n_comp,n_pts,n_t_steps) or 
+% EM_field_empymod(n_comp,n_pts,n_t_steps), respectively.
 
 % Create source location and array of observation points distributed 
-% regularly on a rectangular Cartesian grid over a 3D cuboid. 
+% regularly on a rectangular Cartesioan grid over a 3D cuboid. 
 % Square loop source only defined for empymod.
 % Processing sequence: 
 % 1. analytic_e_field.m
 % 2. plot_single_e_fields.m
 % 3. plot_E_fields_threshold_quiver.m
-% 4. convolution_vector_3D_split.m
+% 4. convolution_vector_3D.m
 % 5. plot_single_sensitivities.m
 % 6. plot_convolution_threshold_scatter3.m,
 % 7. plot_convolution_slice.m,
 % 8. plot_convolution_isosurface.m
 
+% Pick analytical solution
 tic
+Analytical_Solution = pick(2,'VMD','empymod');
 
+switch Analytical_Solution
+    case 'empymod'
         fprintf('Analytical solution: %s\n',Analytical_Solution);
         src_center = [0 0 0]; % May be changed for empymod
-        src_length2 = pick(2, 0.1, 0.5, 2.5, 9);
+        src_length2 = pick(1, 0.5, 2.5, 9);
         line = [-src_length2+src_center(1), -src_length2+src_center(2), 0, 1, 1;    % square, centered at [0,0,0]
             src_length2+src_center(1), -src_length2+src_center(2), 0, 1, 1;
             src_length2+src_center(1),  src_length2+src_center(2), 0, 1, 1;
@@ -35,6 +41,10 @@ tic
         src_A = 1/2 * sum(line(1:end-1, 1).*line(2:end, 2) - ...
             line(2:end, 1).*line(1:end-1, 2));
         src_length=2*src_length2;
+    case 'VMD'
+        src_center = [0 0 0]; % Default for VMD, fixed
+        fprintf('Analytical solution: %s\n',Analytical_Solution);
+end
 
 % No of components
 n_comp = 3;
@@ -91,7 +101,12 @@ p_z(:,:,1) = p_z(:,:,1)+epsilon;
 % Store points as N×3 list
 p_obs = [p_x(:),p_y(:),p_z(:)];
 
+%p_obs = [x_coords_vec,y_coords_vec,z_coords_vec];
+%n_p = numel(p_obs);%size(x_coords_vec)*size(y_coords_vec)*size(z_coords_vec);
+
 % Calculate analytical solutions using empymod or VMD
+switch Analytical_Solution
+    case 'empymod'
         EH = 'E';
         EM_field_empymod = zeros(n_comp,n_pts,n_t_steps);
         % empymod
@@ -111,6 +126,61 @@ p_obs = [p_x(:),p_y(:),p_z(:)];
         save(datafilename, 'EM_field_empymod', 't_obs', ...
             'x_coords_vec','y_coords_vec','z_coords_vec', ...
             'sig_earth','src_center','src_length');
+%{
+%empymod
+% doesn't work
+for ipx = 1:np_x
+    for ipy = 1:np_y
+        for ipz = 1:np_z
+    EH = 'E';
+%    title_str3 = ' E';
+%    ylabel_str = 'V/Am^3';
+    p_obs = [x_coords_vec(ipx),y_coords_vec(ipy),z_coords_vec(ipz)];
+    % Get reference solution for finite-length wire src.
+    E_empymod = app_tem.reference.EH4wire(line(:, 1:3), ...
+                p_obs, sig_earth, 0, ...
+                'tx_type', 'E', 'rx_type', EH, ...
+                't_type', 'time', 't_list', t_obs, ...
+                'sigma_air', sig_air);
+    EM_field_ana = E_empymod / src_A;
+        end
+    end
+end
+%}
 
+    case 'VMD'
+        % VMD
+        % Get reference solution for unit dipole src.
+            %tmp = @(t) app_tem.examples.homogeneous_hs.getVMDLayeredTransient({'dHz', 'dHr'}, t, ...
+            %            norm(point(1:3)), 1/sig_earth, [], 0, 0);
+        EM_field_VMD = zeros(n_comp,n_pts,n_t_steps);
+        Ez_VMD = deal(zeros(n_t_steps, 1));
+
+        for ip = 1:n_pts
+            point(1,1:n_comp) = p_obs(ip,1:n_comp);
+            tmp = @(t_obs) app_tem.reference.getVMDLayeredTransient({'Ef'}, t_obs, ...
+                norm(point(1,1:2)), 1/sig_earth, [], point(1,3), 0);
+            [E_VMD] = deal(zeros(length(t_obs), 1));
+            for ii = 1:n_t_steps
+                E_VMD(ii) = tmp(t_obs(ii));
+            end
+            
+            EM_field_VMD(1:3,ip,1:n_t_steps) = [-E_VMD*point(1,2)/norm(point(1,1:2)), E_VMD*point(1,1)/norm(point(1,1:2)), Ez_VMD]'; 
+            %title_str3 = ' E';
+            %ylabel_str = 'V/Am^3';
+            %Try this:
+            %fprintf('\r\rPoint %6.d out of %6.d',ip, n_pts);
+            if ip > 1 fprintf(repmat('\b', 1, 26)); end
+            fprintf('Point %6.d out of %6.d',ip, n_pts);
+            
+        end
+        % Store fields and coordinates
+        name = ['EM_field_and_coord_VMD_',num2str(np_x),'x',num2str(np_y),...
+            'x',num2str(np_z),'_',num2str(t_exp_min),'_',num2str(t_exp_max)];
+        datafilename = sprintf('%s.mat', name);
+        save(datafilename, 'EM_field_VMD', 't_obs', ...
+            'x_coords_vec','y_coords_vec','z_coords_vec', ...
+            'sig_earth','src_center');
+end
 fprintf('\n');
 toc

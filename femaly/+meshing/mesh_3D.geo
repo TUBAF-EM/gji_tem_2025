@@ -12,7 +12,7 @@ Include "mesh_3D_surf3D.geo";
 bb() = BoundingBox Surface {bnd_air_earth()};
 
 /// Create domain, i.e. volume entity.
-domain_r = 10000;
+domain_r = 100000;
 domain_c = {8.75, 0, 0};
 shape = 1;
 keep_air = 1;
@@ -87,7 +87,7 @@ Physical Surface("bnd_air_earth", 3) = bnd_air_earth();
 /// Meshing.
 // Initialize meshing parameter.
 size_at_point = 0.5;
-size_at_wire = 1.25;
+size_at_wire = 0.5;
 pad = 0.7;
 
 // Cell sizes at points.
@@ -122,8 +122,8 @@ Mesh.SaveParametric = 0;
 
 /// User geo code.
 Field[6] = Box;
-Field[6].VIn = 1.5;
-Field[6].VOut = domain_r;
+Field[6].VIn = 100000;
+Field[6].VOut = domain_r/5;
 Field[6].XMin = 0;
 Field[6].XMax = 20;
 Field[6].YMin = -5;
