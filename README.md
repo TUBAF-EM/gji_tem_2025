@@ -1,7 +1,7 @@
 # gji_tem_2025
 Supplementary material for the GJI article
 
-Tested with Matlab 2022b, 2026a and Gmsh 4.15.0
+Tested with Matlab 2022b, 2026a, Gmsh 4.15.0, and Paraview 5.13
 
 ## FEMALY
 
