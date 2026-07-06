@@ -40,24 +40,24 @@
 
 % Start script from within femaly main folder!
 
-export_results = util.pick(1, false, true);
+export_results = util.pick(1, false, true);                                 % PAPER: true
 
 % Define equation solver.
 % Note: only for implicit Euler, a time-depending source function can be
 %       defined.
 integration_type = util.pick(1, 'impl');
-integration_times = util.pick(2, 'equal', 'split'); % only acts on implicit euler
-solver_type = util.pick(1, 'mumps_ooc', 'mumps', 'chol');
-solver_parallel = 0;                                % number of matlab worker (>1 for parallel computing)
+integration_times = util.pick(2, 'equal', 'split');                         % only acts on implicit euler
+solver_type = util.pick(3, 'mumps_ooc', 'mumps', 'chol');                   % PAPER: mumps
+solver_parallel = 0;                                                        % number of matlab worker (>1 for parallel computing)
 src_type = util.pick(1, 'shut-off', 'ramp');
 data_type = util.pick(3, {'dBdt'}, {'E'}, {'E', 'dBdt'});
 
 % Define FE parameter.
-fe_order = 2;
+fe_order = 1;                                                               % PAPER: 2
 
 % Verbosity parameter.
-file_path = ['results', filesep, 'tem_paper', filesep];
-% diary([file_path, 'data.txt']);
+file_path = ['results', filesep];
+diary([file_path, 'timings_diary.txt']);
 
 % Domain parameter
 sig_air = 1e-9;
@@ -69,12 +69,12 @@ str_param = sprintf(' sig_air: %.2d\n sig_earth: %.2d\n mue_0: %d\n', ...
 % Meshing parameter.
 shape = util.pick(1, 'sphere', 'cuboid');
 domain_r = 1e5;
-src_length = util.pick(1, 5, 1);
+src_length = 5;
 size_at_wr = src_length/10;
-size_at_pt = 5e-1;
+size_at_pt = util.pick(1, 1, 5e-1);                                         % PAPER: 5e-1
 size_at_box = util.pick(2, 1e0, domain_r);
 ref_global = 0;
-line = [-src_length/2, -src_length/2, 0, 1, 1;    % square, centered at [0,0,0]
+line = [-src_length/2, -src_length/2, 0, 1, 1;                              % square, centered at [0,0,0]
          src_length/2, -src_length/2, 0, 1, 1;
          src_length/2,  src_length/2, 0, 1, 1;
         -src_length/2,  src_length/2, 0, 1, 1;
@@ -82,7 +82,7 @@ line = [-src_length/2, -src_length/2, 0, 1, 1;    % square, centered at [0,0,0]
         ];
 src_A = 1/2 * sum(line(1:end-1, 1).*line(2:end, 2) - line(2:end, 1).*line(1:end-1, 2));
 
-point = [20, 0, 0, 1, 1];       % setup Strokkur
+point = [20, 0, 0, 1, 1];                                                   % setup Strokkur
 
 % Time / solver paremeter.
 t_exp_min = log10(1e-7);
@@ -93,73 +93,60 @@ t0 = 10^t_exp_min;
 %{
 t_sys_ = [1.81e-6, 3.69e-6, 6.1e-6, 9.2e-6, 1.31e-5, 1.81e-5, 2.44e-5, ...
          3.26e-5, 4.29e-5, 5.61e-5, 7.29e-5, 9.44e-5, 1.217e-4, 1.614e-4, ...
-         2.01e-4, 2.578e-4, 3.302e-4, 4.227e-4, 5.406e-4, 6.909e-4]; % time after t_0
-t_0_ = 0.9e-6;                                                       % time where TX ramp is assumed to be 0
-t_obs_ = t_sys_ + t_0_;                                               % approximately values from measurement
+         2.01e-4, 2.578e-4, 3.302e-4, 4.227e-4, 5.406e-4, 6.909e-4];        % time after t_0
+t_0_ = 0.9e-6;                                                              % time where TX ramp is assumed to be 0
+t_obs_ = t_sys_ + t_0_;                                                     % approximately values from measurement
 %}
-t_obs_ = logspace(t_exp_min, t_exp_max, 20);                          % approximately logarthmically equidistant values from RBA Setting
+t_obs_ = logspace(t_exp_min, t_exp_max, 20);                                % approximately logarthmically equidistant values from RBA Setting
 
-% Set time integration parameter
-switch integration_type
-    case 'rba'
-
-    % Set up observations times.
-    n_poles = 12;
-    %
-    str_int = sprintf(' t_min: exp(%.1f), t_max: exp(%.1f)\n number of time steps: %d\n poles: %d\n', ...
-                      t_exp_min, t_exp_max, t_steps, n_poles);
-
-    t = t_obs; %Dummy - here calculated times are exactly the observed ones
-
-    case 'impl'
-    % Set general time vector.
-    switch integration_times
-        case 'equal'
-            t_steps = 175;          % per decade
-            [t, dt] = equal_spaced_decades(t_exp_min, t_exp_max, t_steps);
-        case 'split'
-            %{
-            t_steps = 7;            % per splitting intervall
-            t_num_split = 17;
-            [t, dt] = splitted_intervalls(logspace(t_exp_min, t_exp_max, t_num_split), t_steps);
-            %}
-            t_steps = 27;
-            [t, dt] = splitted_intervalls(t_obs_, t_steps);
-        otherwise
-            error('Unknown time axis definition.');
-    end
-
-    % Define time-derivative of source function, i.e. dj/dt.
-    switch src_type
-        case 'shut-off'
-        % Dirac         -> derivative Heavyside function
-        db_param = [];
-        dt_ref = t0/2e1;
-        %
-        str_src = sprintf(' src_type: %s\n dt_ref at 0: %.2d\n', src_type, dt_ref);
-
-        case 'ramp'
-        % Square-wave   -> derivative of perfect linear ramp
-        ref_portion = 10;
-        db_param = 5e-8;                    % ramp length (Geonics, 10x10 loop)
-        dt_ref = db_param/ref_portion;
-        %
-        str_src = sprintf(' src_type: %s\n dt_ref for ramp: %.2d\n ramp length: %.2d\n', ...
-                           src_type, dt_ref, db_param);
-    end
-    %
-    str_int = [sprintf(' t0: exp(%.1f), t_max: exp(%.1f)\n dt(1): %.2d  -> steps/decade: %d\n', ...
-                       t_exp_min, t_exp_max, dt(1), t_steps), str_src];
-
-    % Find values in t closest to t_obs.
-    % -> if t_split ~= t_obs_ values won't be simulated exactly
-    [~, idx] = arrayfun(@(x) min(abs(t - x)), t_obs_);
-
-    % Select unique (in case some values double) the corresponding times.
-    t_obs = unique(t(idx));
-    t = t(1:idx(end));                      % throw away times > max(t_obs)
-    dt = dt(1:idx(end));
+% Set general time vector.
+switch integration_times
+    case 'equal'
+        t_steps = 175;          % per decade
+        [t, dt] = equal_spaced_decades(t_exp_min, t_exp_max, t_steps);
+    case 'split'
+        %{
+        t_steps = 7;            % per splitting intervall
+        t_num_split = 17;
+        [t, dt] = splitted_intervalls(logspace(t_exp_min, t_exp_max, t_num_split), t_steps);
+        %}
+        t_steps = 27;
+        [t, dt] = splitted_intervalls(t_obs_, t_steps);
+    otherwise
+        error('Unknown time axis definition.');
 end
+
+% Define time-derivative of source function, i.e. dj/dt.
+switch src_type
+    case 'shut-off'
+    % Dirac         -> derivative Heavyside function
+    db_param = [];
+    dt_ref = t0/2e1;
+    %
+    str_src = sprintf(' src_type: %s\n dt_ref at 0: %.2d\n', src_type, dt_ref);
+
+    case 'ramp'
+    % Square-wave   -> derivative of perfect linear ramp
+    ref_portion = 10;
+    db_param = 5e-8;                    % ramp length (Geonics, 10x10 loop)
+    dt_ref = db_param/ref_portion;
+    %
+    str_src = sprintf(' src_type: %s\n dt_ref for ramp: %.2d\n ramp length: %.2d\n', ...
+                       src_type, dt_ref, db_param);
+end
+%
+str_int = [sprintf(' t0: exp(%.1f), t_max: exp(%.1f)\n dt(1): %.2d  -> steps/decade: %d\n', ...
+                   t_exp_min, t_exp_max, dt(1), t_steps), str_src];
+
+% Find values in t closest to t_obs.
+% -> if t_split ~= t_obs_ values won't be simulated exactly
+[~, idx] = arrayfun(@(x) min(abs(t - x)), t_obs_);
+
+% Select unique (in case some values double) the corresponding times.
+t_obs = unique(t(idx));
+t = t(1:idx(end));                      % throw away times > max(t_obs)
+dt = dt(1:idx(end));
+
 %
 str_tmp = arrayfun(@(i) {[sprintf('%d ', point(i, 1:3)), ' | ']}, 1:size(point, 1));
 str_geo = sprintf(' shape: %s\n domain_r: %d\n src_length (center: [0,0,0]): %d\n src_A: %d\n point: %s\n', ...
@@ -218,7 +205,7 @@ if strcmp(integration_type, 'impl')
 else
     tem_info.n_poles = n_poles;
 end
-point_obs = point(1, :);                          % just consider first of all points
+point_obs = point;
 tem_info.pt_RX = point_obs;
 tem_info.pt_TX = line;
 tem_info.t_obs = t_obs;
@@ -230,10 +217,9 @@ tem_info.integration_times = integration_times;
 tem_info.solver_parallel = solver_parallel;
 tem_info.data_type = data_type;
 
-% Assemble ans solve.
+% Assemble and solve.
 sol = app_tem.fwd.assemble('3D', mesh, fe_order, bnd_sum, tem_info);
 str_fe = sprintf(' n_dof: %d\n fe_order: %d\n', sol.dofmap.dim, fe_order);
-%
 wrap_solver = @(sigma) app_tem.fwd.solve(sol, sigma, solver_type, tem_info);
 %
 timing = tic;
@@ -244,7 +230,7 @@ str_timing = sprintf(' runtime: %.2f\n', tmp);
 n_d = size(sol.O, 2);
 
 % Check S.
-if sol.dofmap.dim < 1e4 && ~isempty(S)
+if sol.dofmap.dim < 1e5 && ~isempty(S)
     figure(1);
     clf;
     util.run_taylor_test(wrap_solver, sigma, S);
@@ -255,7 +241,7 @@ fprintf(['Geometry: \n', str_geo, '\n']);
 fprintf(['Parameter:\n', str_param, '\n']);
 fprintf(['Mesh:\n', str_meshing, str_mesh, '\n']);
 fprintf(['FE: \n', str_fe, str_timing, '\n'])
-% diary off
+diary off
 
 %% Compare and visualize.
 

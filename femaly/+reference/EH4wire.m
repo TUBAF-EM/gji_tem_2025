@@ -75,9 +75,6 @@ function F = EH4wire(tx, rx, sigma, depth, varargin)
     parse(parser_obj, varargin{:});
     args = parser_obj.Results;
 
-    % Ensure RHS coordinate system is used.
-    depth = [depth(:); -Inf];
-
     % Transform input parameter.
     % Physical parameter.
     rho = 1./[args.sigma_air, sigma(:).'];
@@ -148,11 +145,24 @@ function F = EH4wire(tx, rx, sigma, depth, varargin)
                90, 0;  % y
                0, 90}; % z
 
+    % Ensure to pass correct vector format.
+    % -> Required since MATLAB 2026a (with empymod v2.6.0, Python 3.13.13)
+    depth_row = [depth(:).', -Inf]; % Ensure RHS coordinate system is used.
+    rho_row   = rho(:).';
+    eps_row   = epsilon(:).';
+    % Conversion to native 1D numpy arrays (Shape: (N,)).
+    py_depth = py.numpy.array(depth_row).flatten();
+    py_res   = py.numpy.array(rho_row).flatten();
+    py_eperm = py.numpy.array(eps_row).flatten();
+
     % Collect arguments.
-    args_fix = {'epermH', epsilon, 'epermV', epsilon, 'verb', args.verb, ...
-                'freqtime', args.t_list, 'signal', signal, 'depth', depth, ...
-                'res', rho, 'srcpts', args.srcpts, 'strength', args.I, ...
-                'mrec', mrec, 'msrc', msrc};
+    args_fix = {'epermH', py_eperm, 'epermV', py_eperm, ...
+                'verb', args.verb, ...
+                'freqtime', args.t_list, 'signal', signal, ...
+                'depth', py_depth, ...
+                'res', py_res, ...
+                'srcpts', args.srcpts, 'recpts', args.srcpts, ...
+                'strength', args.I, 'mrec', mrec, 'msrc', msrc};
 
     % Loop over wire segments.
     [F, F_] = deal(zeros(3, n_rx, n_t));

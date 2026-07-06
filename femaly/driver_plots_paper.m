@@ -1,9 +1,9 @@
-%%
+%% Modellantwort vs. empymod
 % KI-generiert:
 
 % 1. Dateien laden
-fig1 = hgload('timings_dBdt.fig', struct('Visible','off'));
-fig2 = hgload('timings_E.fig', struct('Visible','off'));
+fig1 = hgload('results/timings_dBdt.fig', struct('Visible','off'));
+fig2 = hgload('results/timings_E.fig', struct('Visible','off'));
 
 % 2. Nur echte Plot-Achsen finden (schließt Legenden-Handles aus)
 ax1_all = flipud(findobj(fig1, 'Type', 'axes', '-not', 'Tag', 'legend', '-not', 'Tag', 'Colorbar'));
@@ -60,9 +60,9 @@ exportgraphics(gcf, 'timings_E-dBdt.pdf', 'ContentType', 'vector', 'BackgroundCo
 close(fig1);
 close(fig2);
 
-%%
+%% Zeitdiskretisierung
 
-add_t = load('timings_times.mat');
+add_t = load('results/timings_times.mat');
 % Die Indizes bestimmen, an denen eine Änderung zum Vorgänger stattfindet
 indices = [1, find(diff(add_t.dt) ~= 0) + 1];
 num_t = diff([indices, length(add_t.t)]);
@@ -80,7 +80,7 @@ ylabel('n_{t}');
 
 exportgraphics(gcf, 'timings_time1D.pdf', 'ContentType', 'vector', 'BackgroundColor','none');
 
-%%
+%% Timings / Speedup
 
 cpu = [1,2,4,8,16,20];
 cpu_times = [1850, 1310, 614, 383, 259, 215];
@@ -102,7 +102,7 @@ exportgraphics(gcf, 'timings_S.pdf', 'ContentType', 'vector', 'BackgroundColor',
 
 %%
 
-figTt = hgload('timings_Taylor.fig');
+figTt = hgload('results/timings_Taylor.fig');
 figTt.Children(2).Title.String = 'Taylor test convergence';
 figTt.Children(2).YLabel.String = 'Normalized error function';
 
