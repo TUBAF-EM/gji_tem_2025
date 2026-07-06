@@ -65,12 +65,12 @@ The Strokkur TEM data acquired on Sep 25, 2024 and presented in figures 1 and A1
 
 This file contains a structure dBdt with fields
 
-“UTC”: Record time stamp Universal Time
-“Header”: Record Header including RR - repetition rate, IT - integration time, I - Tx current (device-internal default setting - not relevant), TxA - Tx coil area, RxA - Rx coil area, Gain - amplification factor, Delay - additional time shift, Equip - measuring equipment, NGates - number of gates, T0 - ramp time, Prim_feld - primary field, and Comment 
-“GateTimes”: gate times 
-“GPS_Tx”: Tx location 
-“GPS_Rx”: Rx location 
-“Tx_Current”: Tx current (measured - relevant)
-“X”: x-component dBdt transient 
-“Y”: y-component dBdt transient
-“Z”: z-component dBdt transient
+“UTC”: Record time stamp Universal Time;
+“Header”: Record Header including RR - repetition rate, IT - integration time, I - Tx current (device-internal default setting - not relevant), TxA - Tx coil area, RxA - Rx coil area, Gain - amplification factor, Delay - additional time shift, Equip - measuring equipment, NGates - number of gates, T0 - ramp time, Prim_feld - primary field, and Comment; 
+“GateTimes”: gate times; 
+“GPS_Tx”: Tx location;
+“GPS_Rx”: Rx location; 
+“Tx_Current”: Tx current (measured - relevant);
+“X”: x-component dBdt transient; 
+“Y”: y-component dBdt transient;
+“Z”: z-component dBdt transient;
