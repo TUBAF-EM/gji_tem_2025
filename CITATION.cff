@@ -1,0 +1,62 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Supplemental Material for "The Spatio-Temporal Behavior of
+  the Sensitivity of Geophysical Time-Domain
+  Electromagnetics"
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Mathias
+    family-names: Scheunert
+    email: mathias.scheunert@mailserver.tu-freiberg.de
+    affiliation: TU Bergakademie Freiberg
+    orcid: 'https://orcid.org/0000-0001-7348-653X'
+  - given-names: Klaus
+    family-names: Spitzer
+    email: klaus.spitzer@geophysik.tu-freiberg.de
+    affiliation: TU Bergakademie Freiberg
+    orcid: 'https://orcid.org/0000-0003-3530-4672'
+  - given-names: Jana
+    family-names: Börner
+    email: jana.boerner@uni-koeln.de
+    affiliation: Universität zu Köln
+    orcid: 'https://orcid.org/0000-0002-0117-7225'
+  - given-names: Matthias
+    family-names: Hort
+    email: matthias.hort@uni-hamburg.de
+    orcid: 'https://orcid.org/0000-0001-6545-2516'
+    affiliation: Universität Hamburg
+repository-code: 'https://github.com/TUBAF-EM/gji_tem_2025'
+abstract: >-
+  Supplemental material for the publication 'The
+  Spatio-Temporal Behavior of the Sensitivity of
+  Geophysical Time-Domain Electromagnetics'. 
+
+  It includes MATLAB scripts for the numerical calculation
+  of E and dB/dt fields and their sensitivities with respect
+  to spatially discrete electrical conductivity, as well as
+  for analytically calculating E-fields, 
+  including with empymod, and evaluating pointwise
+  sensitivities via the convolutional approach.
+
+  Additionally, a ParaView script and the TEM field data
+  from the Strokkur TEM survey (Sep 25, 2024) are provided
+  to ensure full reproducibility of the published figures.
+keywords:
+  - FEMALY
+  - finite element
+  - time-domain electromagnetics
+  - Strokkur
+  - sensitivity equation approach
+  - convolutional adjoint state method
+  - sensitivity analysis
+  - numerical modeling
+license: GPL-3.0
+commit: ceaabd8f1e133e77c54c6bee8eb3dfa4e99220cc
+version: v1.0
+date-released: '2026-07-07'
