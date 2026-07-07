@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org)](https://doi.org/10.5281/zenodo.21233612)
+<a href="https://doi.org/10.5281/zenodo.21233612"><img src="https://zenodo.org" alt="DOI"></a>
 
 # gji_tem_2025
 Supplementary material for the GJI article
