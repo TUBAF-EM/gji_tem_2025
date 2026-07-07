@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org)]([https://doi.org](https://doi.org/10.5281/zenodo.21233612))
+
 # gji_tem_2025
 Supplementary material for the GJI article
 
